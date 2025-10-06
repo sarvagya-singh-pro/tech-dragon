@@ -11,6 +11,7 @@ import Navbar from "../components/ui/navbar";
 import { useRouter } from 'next/navigation'
 import { fetchAllBlogs, Blog } from '@/lib/blogService';
 import Footer from "@/components/ui/footer";
+import NewsletterModal from '@/components/ui/modal';
 // Animated 3D Dragon Model Component
 function AnimatedDragon() {
   const dragonRef = useRef(null);
@@ -102,6 +103,8 @@ export default function Home() {
   const [blogs, setBlogs] = useState<Blog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showNewsletterModal, setShowNewsletterModal] = useState(false);
+
   useEffect(() => {
     async function loadBlogs() {
       try {
@@ -433,133 +436,50 @@ export default function Home() {
 
       {/* Newsletter Section */}
       <section className="px-10 py-32 max-w-6xl mx-auto relative overflow-hidden">
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-black/30 pointer-events-none z-20"></div>
-        <div className="absolute top-10 left-10 w-32 h-32 bg-blue-500/30 rounded-full blur-2xl animate-pulse"></div>
-        <div className="absolute bottom-10 right-10 w-24 h-24 bg-purple-500/30 rounded-full blur-2xl animate-pulse delay-1000"></div>
+  {/* Keep your existing background effects */}
+  <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-black/30 pointer-events-none z-20"></div>
+  <div className="absolute top-10 left-10 w-32 h-32 bg-blue-500/30 rounded-full blur-2xl animate-pulse"></div>
+  <div className="absolute bottom-10 right-10 w-24 h-24 bg-purple-500/30 rounded-full blur-2xl animate-pulse delay-1000"></div>
 
+  <motion.div
+    className="relative z-10 text-center"
+    initial={{ opacity: 0, y: 50 }}
+    whileInView={{ opacity: 1, y: 0 }}
+    transition={{ duration: 1, ease: "easeOut" }}
+  >
+    <motion.h3
+      className="text-5xl md:text-6xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-white to-blue-600 font-orbitron"
+      initial={{ scale: 0.8, opacity: 0 }}
+      whileInView={{ scale: 1, opacity: 1 }}
+      transition={{ duration: 0.8, ease: "easeOut" }}
+    >
+      Join the Future
+    </motion.h3>
 
-        <motion.div
-          className="relative z-10 text-center"
-          initial={{ opacity: 0, y: 50 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, ease: "easeOut" }}
-        >
-          <motion.h3
-            className="text-5xl md:text-6xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-white to-blue-600 font-orbitron"
-            initial={{ scale: 0.8, opacity: 0 }}
-            whileInView={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-          >
-            Join the Future
-          </motion.h3>
+    <motion.p
+      className="text-xl md:text-2xl text-gray-300 mb-8 max-w-2xl mx-auto"
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2, duration: 0.8 }}
+    >
+      Get exclusive tech insights, cutting-edge tutorials, and early access to the latest dragon-powered content
+    </motion.p>
 
+    <motion.button
+      onClick={() => setShowNewsletterModal(true)}
+      className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-8 py-4 rounded-full font-semibold text-lg hover:from-cyan-400 hover:to-blue-500 transition-all duration-300 shadow-lg hover:shadow-cyan-500/25"
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.4, duration: 0.8 }}
+    >
+      Subscribe Now 🚀
+    </motion.button>
 
-          <motion.p
-            className="text-xl md:text-2xl text-gray-300 mb-8 max-w-2xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.8 }}
-          >
-            Get exclusive tech insights, cutting-edge tutorials, and early access to the latest dragon-powered content
-          </motion.p>
-
-
-          <motion.div
-            className="max-w-md mx-auto"
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.4, duration: 0.8 }}
-          >
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 rounded-full blur opacity-30 group-hover:opacity-60 transition duration-300"></div>
-
-
-              <div className="relative flex bg-gray-900/50 backdrop-blur-md rounded-full p-2 border border-white/10">
-                <input
-                  type="email"
-                  placeholder="Enter your email to the matrix..."
-                  className="flex-1 bg-transparent text-white placeholder-gray-400 px-6 py-3 focus:outline-none text-lg"
-                />
-                <motion.button
-                  className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-8 py-3 rounded-full font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all duration-300 shadow-lg hover:shadow-cyan-500/25"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  Launch 🚀
-                </motion.button>
-              </div>
-            </div>
-
-
-            <motion.div
-              className="flex justify-center gap-8 mt-8 text-sm text-gray-400"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6, duration: 0.8 }}
-            >
-            
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse delay-500"></div>
-                <span>Weekly Insights</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse delay-1000"></div>
-                <span>No Spam Ever</span>
-              </div>
-            </motion.div>
-          </motion.div>
-
-
-          <motion.div
-            className="absolute top-1/4 left-1/4 text-4xl opacity-20"
-            animate={{
-              y: [0, -20, 0],
-              rotate: [0, 10, 0],
-            }}
-            transition={{
-              duration: 6,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-          >
-            💻
-          </motion.div>
-
-
-          <motion.div
-            className="absolute top-1/3 right-1/4 text-3xl opacity-20"
-            animate={{
-              y: [0, 15, 0],
-              rotate: [0, -10, 0],
-            }}
-            transition={{
-              duration: 8,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: 2,
-            }}
-          >
-            🐉
-          </motion.div>
-
-
-          <motion.div
-            className="absolute bottom-1/4 left-1/3 text-2xl opacity-20"
-            animate={{
-              y: [0, -10, 0],
-              x: [0, 10, 0],
-            }}
-            transition={{
-              duration: 7,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: 1,
-            }}
-          >
-            ⚡
-          </motion.div>
-        </motion.div>
-      </section>
+    {/* Keep your existing floating emoji animations */}
+  </motion.div>
+</section>
 
 
      <Footer/>
@@ -593,6 +513,11 @@ export default function Home() {
           cursor: none;
         }
       `}</style>
+      <NewsletterModal 
+  isOpen={showNewsletterModal} 
+  onClose={() => setShowNewsletterModal(false)} 
+/>
+
     </main>
   );
 }

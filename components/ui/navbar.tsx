@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search } from "lucide-react";
-import { collection, query, where, getDocs, orderBy, limit } from "firebase/firestore";
-import { db } from "@/lib/firebase"; // Adjust path to your Firebase config
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase"; // Fixed import path
 import { useRouter } from "next/navigation";
+import NewsletterModal from "@/components/ui/modal"; // Add this import
 
 interface BlogResult {
   id: string;
@@ -20,8 +21,10 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<BlogResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false); // Add modal state
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
+
   const performSearch = async (input: string) => {
     if (!input.trim()) {
       setResults([]);
@@ -33,7 +36,7 @@ export default function Navbar() {
     try {
       const blogsRef = collection(db, "blogs");
       
-      // Fetch all published blogs (consider caching this)
+      // Fetch all published blogs
       const searchQuery = query(
         blogsRef,
         where("published", "==", true)
@@ -47,7 +50,7 @@ export default function Navbar() {
       const searchResults = snapshot.docs
         .filter((doc) => {
           const data = doc.data();
-          const searchableText = `${data.title} ${data.enhanced_title} ${data.category} ${data.summary || ''}`.toLowerCase();
+          const searchableText = `${data.title || ''} ${data.enhanced_title || ''} ${data.search_keywords || ''} ${data.content?.substring(0, 200) || ''}`.toLowerCase();
           return searchableText.includes(searchTerm);
         })
         .map((doc) => ({
@@ -86,70 +89,87 @@ export default function Navbar() {
   }, [searchQuery]);
 
   const handleResultClick = (result: BlogResult) => {
-    // Navigate to the blog article page
     router.push(`/articles/${result.slug || result.id}`);
     setSearchQuery("");
     setResults([]);
   };
 
   return (
-    <div className="p-6 border-b border-white/10 bg-black text-white">
-      <nav className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <img src="/logo.svg" alt="TechDragon Logo" className="h-20 w-auto" />
+    <>
+      <div className="p-6 border-b border-white/10 bg-black text-white">
+        <nav className="flex flex-col md:flex-row justify-between items-center gap-4">
+          <a href="/" className="cursor-pointer">
+            <img src="/logo.svg" alt="TechDragon Logo" className="h-20 w-auto" />
+          </a>
 
-        {/* Navigation Links */}
-        <div className="flex gap-6 text-sm font-medium">
-          <a href="/" className="hover:text-gray-300 transition-colors">Home</a>
-          <a href="/articles" className="hover:text-gray-300 transition-colors">Articles</a>
-          <a href="/about" className="hover:text-gray-300 transition-colors">About</a>
-          <a href="/contact" className="hover:text-gray-300 transition-colors">Contact</a>
-        </div>
+          {/* Navigation Links */}
+          <div className="flex gap-6 text-sm font-medium">
+            <a href="/" className="hover:text-gray-300 transition-colors">Home</a>
+            <a href="/articles" className="hover:text-gray-300 transition-colors">Articles</a>
+            <a href="/about" className="hover:text-gray-300 transition-colors">About</a>
+            <a href="/contact" className="hover:text-gray-300 transition-colors">Contact</a>
+          </div>
 
-        {/* Search Box */}
-        <div className="relative w-full max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/60 z-10" size={18} />
-          <Input
-          type="input"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search articles..."
-            className="pl-10 text-white bg-neutral-800 border-none focus:ring-2 focus:ring-white/20"
-          />
-          
-          {/* Results dropdown */}
-          {searchQuery && (
-            <div className="absolute w-full mt-2 bg-neutral-900 text-white rounded-md shadow-lg max-h-96 overflow-y-auto z-20">
-              {loading ? (
-                <div className="p-4 space-y-2">
-                  <Skeleton className="h-5 w-full bg-neutral-700" />
-                  <Skeleton className="h-5 w-full bg-neutral-700" />
-                  <Skeleton className="h-5 w-full bg-neutral-700" />
-                </div>
-              ) : results.length > 0 ? (
-                <div className="py-2">
-                  {results.map((result) => (
-                    <div
-                      key={result.id}
-                      onClick={() => handleResultClick(result)}
-                      className="hover:bg-neutral-700 px-4 py-3 cursor-pointer transition-colors border-b border-neutral-800 last:border-b-0"
-                    >
-                      <p className="font-medium text-sm line-clamp-2">
-                        {result.enhanced_title || result.title}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-4">
-                  <p className="text-sm text-white/50">No results found for "{searchQuery}"</p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+          {/* Search Box */}
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/60 z-10" size={18} />
+            <Input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search articles..."
+              className="pl-10 text-white bg-neutral-800 border-none focus:ring-2 focus:ring-white/20"
+            />
+            
+            {/* Results dropdown */}
+            {searchQuery && (
+              <div className="absolute w-full mt-2 bg-neutral-900 text-white rounded-md shadow-lg max-h-96 overflow-y-auto z-50">
+                {loading ? (
+                  <div className="p-4 space-y-2">
+                    <Skeleton className="h-5 w-full bg-neutral-700" />
+                    <Skeleton className="h-5 w-full bg-neutral-700" />
+                    <Skeleton className="h-5 w-full bg-neutral-700" />
+                  </div>
+                ) : results.length > 0 ? (
+                  <div className="py-2">
+                    {results.map((result) => (
+                      <div
+                        key={result.id}
+                        onClick={() => handleResultClick(result)}
+                        className="hover:bg-neutral-700 px-4 py-3 cursor-pointer transition-colors border-b border-neutral-800 last:border-b-0"
+                      >
+                        <p className="font-medium text-sm line-clamp-2">
+                          {result.enhanced_title || result.title}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4">
+                    <p className="text-sm text-white/50">No results found for "{searchQuery}"</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
-        <Button  variant="default" size="sm"  className="text-black bg-white hover:bg-gray-300">Subscribe</Button>
-      </nav>
-    </div>
+          {/* Subscribe Button - Opens Modal */}
+          <Button  
+            variant="default" 
+            size="sm"  
+            onClick={() => setIsModalOpen(true)}
+            className="text-black bg-white hover:bg-gray-300 transition-all"
+          >
+            Subscribe
+          </Button>
+        </nav>
+      </div>
+
+      {/* Newsletter Modal */}
+      <NewsletterModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+      />
+    </>
   );
 }
