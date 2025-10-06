@@ -168,7 +168,7 @@ export default function ArticlePage() {
                 Please check your Firestore configuration or try again later.
               </p>
               <Link href="/articles">
-                <Button className="bg-white text-black hover:bg-gray-200">
+                <Button variant="default" size="md"  className="bg-white text-black hover:bg-gray-200">
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back to Articles
                 </Button>
@@ -184,6 +184,7 @@ export default function ArticlePage() {
           {/* Back Button */}
           <Link href="/articles">
             <Button 
+            size="md" 
               variant="ghost" 
               className="mb-8 text-gray-400 hover:text-white hover:bg-gray-900 transition-colors"
             >
@@ -261,7 +262,7 @@ export default function ArticlePage() {
               The article you're looking for doesn't exist or has been removed.
             </p>
             <Link href="/articles">
-              <Button className="bg-white text-black hover:bg-gray-200">
+              <Button variant="default" size="sm"  className="bg-white text-black hover:bg-gray-200">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Browse All Articles
               </Button>

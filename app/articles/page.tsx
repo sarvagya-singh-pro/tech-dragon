@@ -132,7 +132,7 @@ export default function Articles() {
                    
                     </div>
                     <Link href={`/articles/${post.id}`}>
-                      <Button className="w-full bg-white text-black hover:bg-gray-200 transition-all duration-300 transform group-hover:scale-105">
+                      <Button variant="default" size="sm"  className="w-full bg-white text-black hover:bg-gray-200 transition-all duration-300 transform group-hover:scale-105">
                         Read More
                       </Button>
 

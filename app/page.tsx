@@ -13,7 +13,7 @@ import { fetchAllBlogs, Blog } from '@/lib/blogService';
 import Footer from "@/components/ui/footer";
 // Animated 3D Dragon Model Component
 function AnimatedDragon() {
-  const dragonRef = useRef();
+  const dragonRef = useRef(null);
   const { scene } = useGLTF("/dragon.gltf");
 
 
@@ -299,7 +299,7 @@ export default function Home() {
 
 
           <motion.div variants={popInVariants}>
-            <Button onClick={()=>{router.push('/articles')}} className="bg-white text-black text-lg px-6 py-3 hover:bg-gray-300">
+            <Button  variant="default" size="sm" onClick={()=>{router.push('/articles')}} className="bg-white text-black text-lg px-6 py-3 hover:bg-gray-300">
               Explore Blogs
             </Button>
           </motion.div>

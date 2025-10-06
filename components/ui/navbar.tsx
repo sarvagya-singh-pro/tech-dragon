@@ -109,6 +109,7 @@ export default function Navbar() {
         <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/60 z-10" size={18} />
           <Input
+          type="input"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search articles..."
@@ -147,7 +148,7 @@ export default function Navbar() {
           )}
         </div>
 
-        <Button className="text-black bg-white hover:bg-gray-300">Subscribe</Button>
+        <Button  variant="default" size="sm"  className="text-black bg-white hover:bg-gray-300">Subscribe</Button>
       </nav>
     </div>
   );
