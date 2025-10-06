@@ -2,25 +2,19 @@
 
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, useGLTF } from "@react-three/drei";
-import { Suspense, useRef, memo } from "react";
+import { Suspense, useRef, memo, useState, useEffect } from "react";
 
 const AnimatedDragon = memo(function AnimatedDragon() {
   const dragonRef = useRef(null);
+  const { scene } = useGLTF("/dragon.gltf");
   
-  try {
-    const { scene } = useGLTF("/dragon.gltf");
-    
-    useFrame((_, delta) => {
-      if (dragonRef.current) {
-        dragonRef.current.rotation.y += delta * 0.3;
-      }
-    });
+  useFrame((_, delta) => {
+    if (dragonRef.current) {
+      dragonRef.current.rotation.y += delta * 0.3;
+    }
+  });
 
-    return <primitive ref={dragonRef} object={scene} scale={3} />;
-  } catch (error) {
-    console.error("Failed to load dragon:", error);
-    return null;
-  }
+  return <primitive ref={dragonRef} object={scene} scale={3} />;
 });
 
 function Loader() {
@@ -33,11 +27,27 @@ function Loader() {
 }
 
 export default function DragonScene() {
+  const [isClient, setIsClient] = useState(false);
+
+  // Fix hydration issue - only render on client
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Don't render canvas until client-side
+  if (!isClient) {
+    return (
+      <div className="h-full w-full shadow-2xl rounded-xl overflow-hidden bg-gradient-to-br from-gray-900 to-black flex items-center justify-center">
+        <div className="text-gray-500 animate-pulse">Loading 3D...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full w-full shadow-2xl rounded-xl overflow-hidden bg-black">
       <Canvas 
         camera={{ 
-          position: [0, 2, 12], // Moved back from [0, 1, 8] to [0, 2, 12]
+          position: [0, 2, 12],
           fov: 50,
           near: 0.1,
           far: 1000
@@ -72,7 +82,7 @@ export default function DragonScene() {
           dampingFactor={0.05}
           minPolarAngle={Math.PI / 4}
           maxPolarAngle={Math.PI / 1.5}
-          target={[0, 0, 0]} // Look at center
+          target={[0, 0, 0]}
         />
         
         <Suspense fallback={<Loader />}>
@@ -83,4 +93,7 @@ export default function DragonScene() {
   );
 }
 
-useGLTF.preload("/dragon.gltf");
+// Preload the model on mount
+if (typeof window !== 'undefined') {
+  useGLTF.preload("/dragon.gltf");
+}
