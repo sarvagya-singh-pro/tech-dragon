@@ -313,26 +313,35 @@ export default function ArticlePage() {
     })();
   }, [id]);
 
-  const renderedBody = useMemo(() => {
-    if (!blog?.content) return null;
-    const paragraphs = splitParagraphs(blog.content);
+  // Stable paragraph split — only recomputes when the raw content string changes.
+  // Kept isolated so image updates never retrigger this and cause paragraph jitter.
+  const paragraphs = useMemo(
+    () => (blog?.content ? splitParagraphs(blog.content) : []),
+    [blog?.content]  // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
-    // Normalise images array — support both the new controlled format and the
-    // legacy single blog.image fallback
-    const rawImages: BlogImage[] = (blog as any).images?.length > 0
-      ? (blog as any).images
-      : blog.image?.url
-        ? [{ url: blog.image.url, alt: blog.image.alt_text, afterParagraph: 2, size: 'full' }]
-        : [];
-
-    // Build a map: paragraphIndex → image(s) to render AFTER it
-    const imageMap = new Map<number, BlogImage[]>();
+  // Image map — recomputes only when images change, never touches paragraphs.
+  const imageMap = useMemo(() => {
+    const rawImages: BlogImage[] =
+      (blog as any)?.images?.length > 0
+        ? (blog as any).images
+        : blog?.image?.url
+          ? [{ url: blog.image.url, alt: blog.image.alt_text, afterParagraph: 2, size: 'full' as const }]
+          : [];
+    const map = new Map<number, BlogImage[]>();
     for (const img of rawImages) {
       const idx = Math.max(0, img.afterParagraph ?? 0);
-      if (!imageMap.has(idx)) imageMap.set(idx, []);
-      imageMap.get(idx)!.push(img);
+      if (!map.has(idx)) map.set(idx, []);
+      map.get(idx)!.push(img);
     }
+    return map;
+  }, [(blog as any)?.images, blog?.image]);  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Rendered body — combines stable paragraphs with image map.
+  // Paragraph nodes keep identical keys across renders so React never
+  // unmounts/remounts them when only images change — eliminating jitter.
+  const renderedBody = useMemo(() => {
+    if (!paragraphs.length) return null;
     const nodes: React.ReactNode[] = [];
 
     paragraphs.forEach((para, i) => {
@@ -357,10 +366,10 @@ export default function ArticlePage() {
         }
       }
 
-      // Paragraph
+      // Paragraph — key is index-only, never changes between renders
       nodes.push(<p key={`p-${i}`}>{para}</p>);
 
-      // Images that go AFTER this paragraph
+      // Images after this paragraph
       const imgs = imageMap.get(i);
       if (imgs) {
         imgs.forEach((img, j) => {
@@ -384,7 +393,7 @@ export default function ArticlePage() {
     });
 
     return nodes;
-  }, [blog?.content, (blog as any)?.images, blog?.image]);
+  }, [paragraphs, imageMap]);
 
   return (
     <div className="article-root">
