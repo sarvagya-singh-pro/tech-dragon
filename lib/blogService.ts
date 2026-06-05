@@ -1,6 +1,4 @@
 // lib/blogService.ts
-// Direct client-side Firestore queries
-
 import { db } from '@/lib/firebase';
 import { 
   collection, 
@@ -10,31 +8,112 @@ import {
   query, 
   limit, 
   orderBy,
-  where,
   startAfter,
   QueryDocumentSnapshot,
   DocumentData
 } from 'firebase/firestore';
+import { cache } from 'react';
 
 export interface Blog {
   id: string;
   content: string;
   char_count: number;
   title?: string;
+  enhanced_title?: string;
   author?: string;
+  date_created?: string;
   createdAt?: any;
   updatedAt?: any;
   tags?: string[];
   [key: string]: any;
 }
 
+// ==================== CACHING LAYER ====================
+// In-memory cache for server-side operations
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+class BlogCache {
+  private static instance: BlogCache;
+  private cache: Map<string, CacheEntry<any>> = new Map();
+  private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
+
+  private constructor() {}
+
+  static getInstance(): BlogCache {
+    if (!BlogCache.instance) {
+      BlogCache.instance = new BlogCache();
+    }
+    return BlogCache.instance;
+  }
+
+  get<T>(key: string, ttl: number = this.DEFAULT_TTL): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    const isExpired = Date.now() - entry.timestamp > ttl;
+    if (isExpired) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    console.log(`✅ Cache HIT: ${key}`);
+    return entry.data as T;
+  }
+
+  set<T>(key: string, data: T): void {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now()
+    });
+    console.log(`📝 Cache SET: ${key}`);
+  }
+
+  invalidate(key?: string): void {
+    if (key) {
+      this.cache.delete(key);
+      console.log(`🗑️ Cache INVALIDATED: ${key}`);
+    } else {
+      this.cache.clear();
+      console.log(`🗑️ Cache CLEARED: All entries`);
+    }
+  }
+
+  // Clear expired entries periodically
+  cleanup(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache.entries()) {
+      if (now - entry.timestamp > this.DEFAULT_TTL) {
+        this.cache.delete(key);
+      }
+    }
+  }
+}
+
+const blogCache = BlogCache.getInstance();
+
+// Cleanup cache every 10 minutes
+if (typeof window === 'undefined') {
+  setInterval(() => blogCache.cleanup(), 10 * 60 * 1000);
+}
+
+// ==================== OPTIMIZED FETCH FUNCTIONS ====================
+
 /**
- * Fetch all blogs from Firestore
- * @param limitCount - Optional limit on number of blogs to fetch
- * @returns Array of Blog objects
+ * Fetch all blogs with multi-layer caching
+ * Uses React cache() for request deduplication + in-memory cache for persistence
  */
-export async function fetchAllBlogs(limitCount?: number): Promise<Blog[]> {
+export const fetchAllBlogs = cache(async (limitCount?: number): Promise<Blog[]> => {
+  const cacheKey = `blogs:all:${limitCount || 'unlimited'}`;
+  
+  // Check in-memory cache first
+  const cached = blogCache.get<Blog[]>(cacheKey);
+  if (cached) return cached;
+
   try {
+    console.log('🔥 Firestore READ: Fetching all blogs');
     const blogsRef = collection(db, 'blogs');
     let q = query(blogsRef);
     
@@ -49,59 +128,66 @@ export async function fetchAllBlogs(limitCount?: number): Promise<Blog[]> {
       ...doc.data(),
     })) as Blog[];
 
+    // Store in cache
+    blogCache.set(cacheKey, blogs);
+
     return blogs;
   } catch (error: any) {
     console.error('Error fetching blogs:', error);
     throw new Error(`Failed to fetch blogs: ${error.message}`);
   }
-}
+});
 
 /**
- * Fetch a single blog by ID
- * @param id - Blog document ID
- * @returns Blog object or null if not found
+ * Fetch single blog by ID with caching
+ * React cache() ensures same blog isn't fetched twice in same request
  */
-export async function fetchBlogById(id: string): Promise<Blog | null> {
+export const fetchBlogById = cache(async (id: string): Promise<Blog | null> => {
+  const cacheKey = `blog:${id}`;
+  
+  // Check cache first
+  const cached = blogCache.get<Blog | null>(cacheKey);
+  if (cached !== null) return cached;
+
   try {
+    console.log(`🔥 Firestore READ: Fetching blog ${id}`);
     const blogRef = doc(db, 'blogs', id);
     const blogSnap = await getDoc(blogRef);
 
     if (!blogSnap.exists()) {
+      blogCache.set(cacheKey, null);
       return null;
     }
 
-    return {
+    const blog = {
       id: blogSnap.id,
       ...blogSnap.data(),
     } as Blog;
+
+    blogCache.set(cacheKey, blog);
+    return blog;
   } catch (error: any) {
     console.error('Error fetching blog:', error);
     throw new Error(`Failed to fetch blog: ${error.message}`);
   }
-}
+});
 
 /**
- * Search blogs by keyword in content or title
- * @param keyword - Search term
- * @returns Array of matching Blog objects
+ * Server-side search with caching
+ * Fetches all blogs once and caches, then filters client-side
  */
 export async function searchBlogs(keyword: string): Promise<Blog[]> {
   try {
-    const blogsRef = collection(db, 'blogs');
-    const snapshot = await getDocs(blogsRef);
+    // Leverage cached fetchAllBlogs
+    const blogs = await fetchAllBlogs();
     
-    const blogs = snapshot.docs
-      .map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Blog[];
-    
-    // Client-side filtering (Firestore doesn't support full-text search natively)
+    // Client-side filtering (no additional Firestore reads!)
+    const searchLower = keyword.toLowerCase();
     const filtered = blogs.filter(blog => {
-      const searchLower = keyword.toLowerCase();
       return (
         blog.content?.toLowerCase().includes(searchLower) ||
         blog.title?.toLowerCase().includes(searchLower) ||
+        blog.enhanced_title?.toLowerCase().includes(searchLower) ||
         blog.id.toLowerCase().includes(searchLower)
       );
     });
@@ -114,36 +200,50 @@ export async function searchBlogs(keyword: string): Promise<Blog[]> {
 }
 
 /**
- * Fetch blogs with pagination
- * @param limitCount - Number of blogs per page
- * @param lastDoc - Last document from previous page (for pagination)
- * @returns Object with blogs array and last document
+ * Pagination with cursor-based approach
+ * Note: Harder to cache effectively, use sparingly
  */
 export async function fetchBlogsWithPagination(
   limitCount: number = 10,
-  lastDoc?: QueryDocumentSnapshot<DocumentData>
-): Promise<{ blogs: Blog[]; lastDoc: QueryDocumentSnapshot<DocumentData> | null }> {
+  lastDocId?: string
+): Promise<{ blogs: Blog[]; hasMore: boolean; lastDocId: string | null }> {
   try {
-    const blogsRef = collection(db, 'blogs');
-    let q = query(blogsRef, limit(limitCount));
+    const cacheKey = `blogs:page:${limitCount}:${lastDocId || 'first'}`;
     
-    if (lastDoc) {
-      q = query(blogsRef, startAfter(lastDoc), limit(limitCount));
+    const cached = blogCache.get<{ blogs: Blog[]; hasMore: boolean; lastDocId: string | null }>(cacheKey, 2 * 60 * 1000); // 2min TTL
+    if (cached) return cached;
+
+    console.log('🔥 Firestore READ: Fetching paginated blogs');
+    const blogsRef = collection(db, 'blogs');
+    
+    let q = query(blogsRef, limit(limitCount + 1)); // Fetch one extra to check if more exist
+    
+    if (lastDocId) {
+      const lastDocRef = doc(db, 'blogs', lastDocId);
+      const lastDocSnap = await getDoc(lastDocRef);
+      if (lastDocSnap.exists()) {
+        q = query(blogsRef, startAfter(lastDocSnap), limit(limitCount + 1));
+      }
     }
 
     const snapshot = await getDocs(q);
     
-    const blogs = snapshot.docs.map(doc => ({
+    const hasMore = snapshot.docs.length > limitCount;
+    const blogs = snapshot.docs.slice(0, limitCount).map(doc => ({
       id: doc.id,
       ...doc.data(),
     })) as Blog[];
 
-    const lastVisible = snapshot.docs[snapshot.docs.length - 1] || null;
+    const lastVisibleId = blogs.length > 0 ? blogs[blogs.length - 1].id : null;
 
-    return {
+    const result = {
       blogs,
-      lastDoc: lastVisible,
+      hasMore,
+      lastDocId: lastVisibleId,
     };
+
+    blogCache.set(cacheKey, result);
+    return result;
   } catch (error: any) {
     console.error('Error fetching blogs with pagination:', error);
     throw new Error(`Failed to fetch blogs: ${error.message}`);
@@ -151,29 +251,40 @@ export async function fetchBlogsWithPagination(
 }
 
 /**
- * Get total count of blogs
- * @returns Number of total blogs
+ * Get blog count with aggressive caching (counts change infrequently)
  */
-export async function getBlogCount(): Promise<number> {
+export const getBlogCount = cache(async (): Promise<number> => {
+  const cacheKey = 'blogs:count';
+  
+  const cached = blogCache.get<number>(cacheKey, 15 * 60 * 1000); // 15min TTL
+  if (cached !== null) return cached;
+
   try {
+    console.log('🔥 Firestore READ: Getting blog count');
     const blogsRef = collection(db, 'blogs');
     const snapshot = await getDocs(blogsRef);
-    return snapshot.size;
+    const count = snapshot.size;
+    
+    blogCache.set(cacheKey, count);
+    return count;
   } catch (error: any) {
     console.error('Error getting blog count:', error);
     throw new Error(`Failed to get blog count: ${error.message}`);
   }
-}
+});
 
 /**
- * Fetch recent blogs (if createdAt field exists)
- * @param limitCount - Number of blogs to fetch
- * @returns Array of recent Blog objects
+ * Fetch recent blogs with caching
  */
-export async function fetchRecentBlogs(limitCount: number = 5): Promise<Blog[]> {
+export const fetchRecentBlogs = cache(async (limitCount: number = 5): Promise<Blog[]> => {
+  const cacheKey = `blogs:recent:${limitCount}`;
+  
+  const cached = blogCache.get<Blog[]>(cacheKey);
+  if (cached) return cached;
+
   try {
+    console.log('🔥 Firestore READ: Fetching recent blogs');
     const blogsRef = collection(db, 'blogs');
-    // Note: This requires createdAt field and a Firestore index
     const q = query(blogsRef, orderBy('createdAt', 'desc'), limit(limitCount));
 
     const snapshot = await getDocs(q);
@@ -183,10 +294,31 @@ export async function fetchRecentBlogs(limitCount: number = 5): Promise<Blog[]> 
       ...doc.data(),
     })) as Blog[];
 
+    blogCache.set(cacheKey, blogs);
     return blogs;
   } catch (error: any) {
     console.error('Error fetching recent blogs:', error);
-    // Fallback to regular fetch if orderBy fails (missing field or index)
-    return fetchAllBlogs(limitCount);
+    // Fallback to regular fetch if orderBy fails
+    const allBlogs = await fetchAllBlogs(limitCount);
+    return allBlogs;
   }
+});
+
+/**
+ * Manually invalidate cache (call this after blog updates/deletes)
+ */
+export function invalidateBlogCache(blogId?: string): void {
+  if (blogId) {
+    blogCache.invalidate(`blog:${blogId}`);
+  }
+  // Invalidate list caches when any blog changes
+  blogCache.invalidate('blogs:all:unlimited');
+  blogCache.invalidate('blogs:count');
+}
+
+/**
+ * Clear all blog caches
+ */
+export function clearAllBlogCaches(): void {
+  blogCache.invalidate();
 }
